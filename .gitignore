@@ -1,0 +1,9 @@
+build/
+dist/
+out/
+smoke/
+*.egg-info/
+__pycache__/
+.pytest_cache/
+# Built by scripts/build_engine.py
+src/hwp2x/_engine/

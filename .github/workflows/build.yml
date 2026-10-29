@@ -1,0 +1,94 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # attach release assets on tags
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, name: windows-x64 }
+          - { os: macos-14,       name: macos-arm64 }   # Apple silicon
+          - { os: macos-13,       name: macos-x64 }     # Intel
+          - { os: ubuntu-22.04,   name: linux-x64 }     # older glibc = wider compatibility
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Linux libraries Qt needs at test time
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0 fonts-noto-cjk
+
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+
+      - name: Build engine and bundled Java runtime
+        run: python scripts/build_engine.py
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q
+
+      - name: Build app
+        run: pyinstaller packaging/hwp2x.spec --noconfirm --distpath dist --workpath build/pyi
+
+      - name: Smoke test the built program (Korean path, bundled Java)
+        run: |
+          mkdir -p "smoke/한글 폴더"
+          cp "build/engine/upstream/hwplib/sample_hwp/basic/표.hwp" "smoke/한글 폴더/보고서 표.hwp"
+          case "$RUNNER_OS" in
+            Windows) CLI=dist/hwp2x/hwp2x.exe ;;
+            macOS)   CLI=dist/hwp2x.app/Contents/MacOS/hwp2x ;;
+            *)       CLI=dist/hwp2x/hwp2x ;;
+          esac
+          "$CLI" smoke
+          python -c "import sys; sys.path.insert(0,'src'); from hwp2x import check_hwpx; p=check_hwpx('smoke/한글 폴더/보고서 표.hwpx'); print(p); sys.exit(1 if p else 0)"
+
+      - name: Package
+        run: |
+          mkdir -p out
+          V="${GITHUB_REF_NAME#v}"; [[ "$GITHUB_REF" == refs/tags/* ]] || V=dev
+          case "$RUNNER_OS" in
+            Windows)
+              7z a -tzip "out/hwp2x-$V-${{ matrix.name }}.zip" ./dist/hwp2x/* >/dev/null ;;
+            macOS)
+              codesign --force --deep --sign - dist/hwp2x.app   # ad-hoc signature (required on Apple silicon)
+              hdiutil create -volname hwp2x -srcfolder dist/hwp2x.app -ov -format UDZO \
+                "out/hwp2x-$V-${{ matrix.name }}.dmg" ;;
+            *)
+              tar -C dist -czf "out/hwp2x-$V-${{ matrix.name }}.tar.gz" hwp2x ;;
+          esac
+          ls -lh out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hwp2x-${{ matrix.name }}
+          path: out/*
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
