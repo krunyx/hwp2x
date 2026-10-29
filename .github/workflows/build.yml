@@ -18,21 +18,21 @@ jobs:
         include:
           - { os: windows-latest, name: windows-x64 }
           - { os: macos-14,       name: macos-arm64 }   # Apple silicon
-          - { os: macos-13,       name: macos-x64 }     # Intel
+          - { os: macos-15-intel, name: macos-x64 }    # Intel
           - { os: ubuntu-22.04,   name: linux-x64 }     # older glibc = wider compatibility
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -63,7 +63,14 @@ jobs:
             macOS)   CLI=dist/hwp2x.app/Contents/MacOS/hwp2x ;;
             *)       CLI=dist/hwp2x/hwp2x ;;
           esac
-          "$CLI" smoke
+          # -r: the sample sits in a sub-folder. On failure, surface the output as an
+          # annotation so it is visible without downloading the job log.
+          if ! "$CLI" smoke -r > smoke.log 2>&1; then
+            cat smoke.log
+            echo "::error title=smoke test::$(tail -n 5 smoke.log | tr '\n' ' ')"
+            exit 1
+          fi
+          cat smoke.log
           python -c "import sys; sys.path.insert(0,'src'); from hwp2x import check_hwpx; p=check_hwpx('smoke/한글 폴더/보고서 표.hwpx'); print(p); sys.exit(1 if p else 0)"
 
       - name: Package
@@ -82,7 +89,7 @@ jobs:
           esac
           ls -lh out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: hwp2x-${{ matrix.name }}
           path: out/*
