@@ -73,6 +73,14 @@ jobs:
           fi
           cat smoke.log
           python -c "import sys; sys.path.insert(0,'src'); from hwp2x import check_hwpx; p=check_hwpx('smoke/한글 폴더/보고서 표.hwpx'); print(p); sys.exit(1 if p else 0)"
+          # the other formats go through the bundled reader/writers (and Pillow)
+          cp "build/engine/upstream/hwplib/sample_hwp/basic/그림.hwp" "smoke/한글 폴더/그림.hwp"
+          for t in docx md html tex htex; do
+            "$CLI" smoke -r -t $t -f >> smoke.log 2>&1 || { cat smoke.log; echo "::error title=smoke test::format $t failed"; exit 1; }
+          done
+          ls -R smoke
+          test -s "smoke/한글 폴더/보고서 표.docx" && test -s "smoke/한글 폴더/그림.md" && test -d "smoke/한글 폴더/그림_files"
+          python -c "import sys; sys.path.insert(0,'src'); from hwp2x.verify import check_docx; p=check_docx('smoke/한글 폴더/보고서 표.docx'); print(p); sys.exit(1 if p else 0)"
 
       - name: Package
         run: |

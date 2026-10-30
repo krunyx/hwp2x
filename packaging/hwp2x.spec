@@ -33,7 +33,12 @@ def _keep(entry):
 
 def analysis(script):
     a = Analysis([str(ROOT / "packaging" / script)], pathex=[str(ROOT / "src")],
-                 datas=datas, excludes=excludes, noarchive=False)
+                 datas=datas, excludes=excludes, noarchive=False,
+                 # writers are imported on demand, by format
+                 hiddenimports=["hwp2x.writers.markdown", "hwp2x.writers.html", "hwp2x.writers.latex",
+                                "hwp2x.writers.docx", "hwp2x.hwpx_reader", "PIL.BmpImagePlugin",
+                                "PIL.GifImagePlugin", "PIL.TiffImagePlugin", "PIL.PngImagePlugin",
+                                "PIL.JpegImagePlugin"])
     a.datas = [d for d in a.datas if _keep(d)]
     return a
 
@@ -55,11 +60,11 @@ if sys.platform == "darwin":
                  info_plist={
                      "CFBundleDisplayName": "hwp2x",
                      "CFBundleExecutable": "hwp2x-gui",
-                     "CFBundleShortVersionString": "0.1.0",
+                     "CFBundleShortVersionString": "0.2.0",
                      "NSHighResolutionCapable": True,
                      "CFBundleDocumentTypes": [{
                          "CFBundleTypeName": "Hangul Document",
-                         "CFBundleTypeExtensions": ["hwp"],
+                         "CFBundleTypeExtensions": ["hwp", "hwpx"],
                          "CFBundleTypeRole": "Viewer",
                          "LSHandlerRank": "Alternate",
                      }],

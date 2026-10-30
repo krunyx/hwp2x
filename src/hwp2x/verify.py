@@ -80,3 +80,39 @@ def section_text(path: str | Path) -> str:
                 if el.tag.endswith(("}t", "}mainText", "}subText", "}script")):
                     out.append("".join(el.itertext()))
     return "".join(out)
+
+
+_DOCX_REQUIRED = ("[Content_Types].xml", "_rels/.rels", "word/document.xml")
+
+
+def check_docx(path: str | Path) -> list[str]:
+    """Structural checks for a produced .docx: readable zip, required parts,
+    well-formed XML, and every internal relationship pointing at a real part."""
+    problems: list[str] = []
+    try:
+        zf = zipfile.ZipFile(path)
+    except (zipfile.BadZipFile, OSError) as e:
+        return [f"not a readable zip: {e}"]
+    with zf:
+        names = set(zf.namelist())
+        for req in _DOCX_REQUIRED:
+            if req not in names:
+                problems.append(f"missing {req}")
+        for n in sorted(names):
+            if n.endswith((".xml", ".rels")):
+                try:
+                    ET.fromstring(zf.read(n))
+                except ET.ParseError as e:
+                    problems.append(f"malformed XML in {n}: {e}")
+        rels = "word/_rels/document.xml.rels"
+        if rels in names:
+            try:
+                for r in ET.fromstring(zf.read(rels)):
+                    if r.get("TargetMode") == "External":
+                        continue
+                    target = posixpath.normpath(posixpath.join("word", r.get("Target", "")))
+                    if target not in names:
+                        problems.append(f"relationship target missing: {target}")
+            except ET.ParseError:
+                pass
+    return problems

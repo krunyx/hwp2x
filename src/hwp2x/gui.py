@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QColor
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QFileDialog, QFrame,
+    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
     QRadioButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from . import __version__
 from .converter import Result, convert_all, plan
 from .engine import EngineError
+from .writers import FORMATS
 
 PAPER, INK, MUTED, LINE = "#F4F6F8", "#1B2633", "#5B6878", "#D5DCE3"
 ACCENT, ACCENT_DARK = "#24508A", "#1A3C69"
@@ -50,6 +51,9 @@ QPushButton#primary {{ background: {ACCENT}; color: #FFFFFF; border: none; paddi
 QPushButton#primary:hover {{ background: {ACCENT_DARK}; }}
 QPushButton#primary:focus {{ border: 2px solid #9DB8DC; }}
 QPushButton#primary:disabled {{ background: #9DB0C8; }}
+QComboBox {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 6px; padding: 5px 10px; min-width: 190px; }}
+QComboBox:focus {{ border: 2px solid {ACCENT}; }}
+QComboBox QAbstractItemView {{ background: #FFFFFF; selection-background-color: #E3EBF5; selection-color: {INK}; }}
 QLineEdit {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 6px; padding: 6px 8px; }}
 QLineEdit:disabled {{ color: #A6B0BB; }}
 QProgressBar {{ background: #E3E8ED; border: none; border-radius: 3px; max-height: 6px; }}
@@ -70,11 +74,15 @@ class DropZone(QFrame):
         arrow = QLabel(".hwp  →  .hwpx")
         arrow.setObjectName("arrow")
         arrow.setAlignment(Qt.AlignCenter)
-        hint = QLabel("HWP 파일이나 폴더를 여기에 끌어다 놓으세요")
+        self.arrow = arrow
+        hint = QLabel("HWP·HWPX 파일이나 폴더를 여기에 끌어다 놓으세요")
         hint.setObjectName("hint")
         hint.setAlignment(Qt.AlignCenter)
         lay.addWidget(arrow)
         lay.addWidget(hint)
+
+    def set_target(self, fmt: str) -> None:
+        self.arrow.setText(f".hwp  →  {FORMATS[fmt][0]}")
 
     def _hover(self, on: bool) -> None:
         self.setProperty("hover", "true" if on else "false")
@@ -172,6 +180,17 @@ class MainWindow(QWidget):
         # Output options
         opts = QVBoxLayout()
         opts.setSpacing(6)
+        kind = QHBoxLayout()
+        kind.addWidget(QLabel("변환 형식"))
+        self.fmt_box = QComboBox()
+        for key, (ext, label) in FORMATS.items():
+            self.fmt_box.addItem(f"{label}  ·  {ext}", key)
+        self.fmt_box.currentIndexChanged.connect(self._format_changed)
+        kind.addWidget(self.fmt_box)
+        self.fmt_note = QLabel("")
+        self.fmt_note.setObjectName("muted")
+        kind.addWidget(self.fmt_note, 1)
+        opts.addLayout(kind)
         dest = QHBoxLayout()
         dest.addWidget(QLabel("저장 위치"))
         self.rb_same = QRadioButton("원본과 같은 폴더")
@@ -195,7 +214,7 @@ class MainWindow(QWidget):
         self.cb_recursive = QCheckBox("폴더 안의 하위 폴더까지 포함")
         self.cb_recursive.setChecked(True)
         self.cb_recursive.toggled.connect(self.refresh_rows)
-        self.cb_overwrite = QCheckBox("같은 이름의 .hwpx가 있으면 덮어쓰기")
+        self.cb_overwrite = QCheckBox("같은 이름의 결과 파일이 있으면 덮어쓰기")
         flags.addWidget(self.cb_recursive)
         flags.addSpacing(18)
         flags.addWidget(self.cb_overwrite)
@@ -230,7 +249,7 @@ class MainWindow(QWidget):
 
     # -- list management -----------------------------------------------------
     def pick_files(self) -> None:
-        files, _ = QFileDialog.getOpenFileNames(self, "HWP 파일 선택", "", "한글 문서 (*.hwp *.HWP)")
+        files, _ = QFileDialog.getOpenFileNames(self, "한글 문서 선택", "", "한글 문서 (*.hwp *.hwpx *.HWP *.HWPX)")
         self.add_paths(files)
 
     def pick_dir(self) -> None:
@@ -250,7 +269,7 @@ class MainWindow(QWidget):
         known = {p.resolve() for p in self.inputs}
         for raw in paths:
             p = Path(raw)
-            if p.resolve() not in known and (p.is_dir() or p.suffix.lower() == ".hwp"):
+            if p.resolve() not in known and (p.is_dir() or p.suffix.lower() in (".hwp", ".hwpx")):
                 self.inputs.append(p)
                 known.add(p.resolve())
         self.refresh_rows()
@@ -261,7 +280,7 @@ class MainWindow(QWidget):
 
     def refresh_rows(self) -> None:
         self.results.clear()
-        jobs = plan(self.inputs, None, self.cb_recursive.isChecked())
+        jobs = plan(self.inputs, None, self.cb_recursive.isChecked(), self.fmt)
         self._fill([job.src for job in jobs])
         n = len(jobs)
         self.count.setText(f"{n}개 파일" if n else "")
@@ -302,6 +321,24 @@ class MainWindow(QWidget):
         msg.setForeground(QColor(MUTED if status in ("ok", "pending", "skipped") else color))
         self.table.setItem(row, 2, msg)
 
+    @property
+    def fmt(self) -> str:
+        return self.fmt_box.currentData() or "hwpx"
+
+    _NOTES = {
+        "hwpx": "",
+        "docx": "표·각주·수식은 Word 형식으로, 쪽 모양은 Word 기본값으로",
+        "md": "내용과 구조만. 그림은 옆 폴더에 저장",
+        "html": "그림이 들어간 웹 페이지 한 장. 수식은 MathML",
+        "tex": "XeLaTeX용. 그림은 옆 폴더에 저장",
+        "htex": "HyperTeX 문서. 그림은 옆 폴더에 저장",
+    }
+
+    def _format_changed(self) -> None:
+        self.drop.set_target(self.fmt)
+        self.fmt_note.setText(self._NOTES.get(self.fmt, ""))
+        self.refresh_rows()
+
     # -- conversion -------------------------------------------------------------
     @property
     def busy(self) -> bool:
@@ -321,7 +358,7 @@ class MainWindow(QWidget):
                 QMessageBox.information(self, "hwp2x", "결과를 저장할 폴더를 선택하세요.")
                 return
             out_dir = Path(text)
-        jobs = plan(self.inputs, out_dir, self.cb_recursive.isChecked())
+        jobs = plan(self.inputs, out_dir, self.cb_recursive.isChecked(), self.fmt)
         if not jobs:
             return
         self.last_out_dir = out_dir
@@ -413,7 +450,7 @@ class MainWindow(QWidget):
         has = self.table.rowCount() > 0
         self.btn_go.setText("멈추기" if busy else "변환")
         self.btn_go.setEnabled(has)
-        for w in (self.btn_files, self.btn_dir, self.btn_clear, self.cb_recursive,
+        for w in (self.btn_files, self.btn_dir, self.btn_clear, self.cb_recursive, self.fmt_box,
                   self.cb_overwrite, self.rb_same, self.rb_other, self.out_edit, self.btn_out):
             w.setEnabled(not busy)
         if not busy:

@@ -8,6 +8,7 @@ import threading
 from . import __version__
 from .converter import Result, convert_all, default_workers, plan
 from .engine import EngineError
+from .writers import FORMATS
 
 _MARK = {"ok": "✔", "warn": "△", "skipped": "–", "error": "✘"}
 
@@ -24,14 +25,19 @@ def _configure_stdout() -> None:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="hwp2x",
-        description="HWP 문서를 HWPX로 변환합니다.",
-        epilog="예) hwp2x 보고서.hwp   |   hwp2x ./문서폴더 -r -o ./변환결과",
+        description="한글 문서(HWP, HWPX)를 HWPX, DOCX, Markdown, HTML, LaTeX, HyperTeX로 변환합니다.",
+        epilog=("예) hwp2x 보고서.hwp                    → 보고서.hwpx\n"
+                "    hwp2x 보고서.hwp -t docx            → 보고서.docx\n"
+                "    hwp2x ./문서폴더 -r -t md -o ./결과  → 하위 폴더까지 Markdown으로"),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("inputs", nargs="+", metavar="경로", help=".hwp 파일 또는 폴더")
+    p.add_argument("inputs", nargs="+", metavar="경로", help=".hwp/.hwpx 파일 또는 폴더")
+    p.add_argument("-t", "--to", choices=list(FORMATS), default="hwpx", metavar="형식",
+                   help="출력 형식: " + ", ".join(FORMATS) + " (기본 hwpx)")
     p.add_argument("-o", "--output-dir", metavar="폴더",
                    help="결과를 저장할 폴더 (기본: 원본과 같은 폴더)")
     p.add_argument("-r", "--recursive", action="store_true", help="하위 폴더까지 변환")
-    p.add_argument("-f", "--overwrite", action="store_true", help="이미 있는 .hwpx 덮어쓰기")
+    p.add_argument("-f", "--overwrite", action="store_true", help="이미 있는 결과 파일 덮어쓰기")
     p.add_argument("-j", "--jobs", type=int, default=default_workers(), metavar="N",
                    help=f"동시 변환 수 (기본 {default_workers()})")
     p.add_argument("--timeout", type=float, default=300, metavar="초",
@@ -46,9 +52,10 @@ def main(argv: list[str] | None = None) -> int:
     _configure_stdout()
     a = build_parser().parse_args(argv)
 
-    jobs = plan(a.inputs, a.output_dir, a.recursive)
+    jobs = plan(a.inputs, a.output_dir, a.recursive, a.to)
     if not jobs:
-        print("변환할 .hwp 파일이 없습니다.", file=sys.stderr)
+        what = ".hwp" if a.to == "hwpx" else ".hwp/.hwpx"
+        print(f"변환할 {what} 파일이 없습니다.", file=sys.stderr)
         return 2
 
     total = len(jobs)

@@ -1,6 +1,6 @@
-"""hwp2x — convert HWP documents to HWPX on Windows, macOS and Linux."""
+"""hwp2x — convert Hangul documents (HWP, HWPX) to HWPX, DOCX, Markdown, HTML, LaTeX and HyperTeX."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .converter import Job, Result, convert, convert_all, plan  # noqa: E402
 from .engine import EngineError  # noqa: E402

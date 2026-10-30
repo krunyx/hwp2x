@@ -4,16 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hwp2x"
-version = "0.1.0"
-description = "Convert HWP documents to HWPX on Windows, macOS and Linux"
+version = "0.2.0"
+description = "Convert Hangul (HWP/HWPX) documents to HWPX, DOCX, Markdown, HTML, LaTeX and HyperTeX"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
-dependencies = []
+dependencies = ["Pillow>=10"]   # BMP/GIF/TIFF pictures -> PNG
 
 [project.optional-dependencies]
 gui = ["PySide6-Essentials>=6.6"]
-dev = ["pytest>=7", "pyinstaller>=6.6", "PySide6-Essentials>=6.6"]
+dev = ["pytest>=7", "pyinstaller>=6.6", "PySide6-Essentials>=6.6", "python-docx>=1.1",
+       "htex @ git+https://github.com/krunyx/hypertex"]
 
 [project.scripts]
 hwp2x = "hwp2x.cli:main"
