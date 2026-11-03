@@ -176,7 +176,10 @@ class Engine:
         if line is None:  # JVM died on this file (e.g. out of memory)
             self._kill()
             return "error", "CRASH", "변환 엔진이 비정상 종료했습니다 (파일이 너무 크거나 손상됨)", 0
-        return _parse(line)
+        res = _parse(line)
+        if res[1] == "MEMORY":
+            self._kill()           # a JVM that ran out of memory is not trusted with the next file
+        return res
 
     def _kill(self) -> None:
         if self._proc is not None:

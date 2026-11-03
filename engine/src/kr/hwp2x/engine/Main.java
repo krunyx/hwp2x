@@ -3,6 +3,7 @@ package kr.hwp2x.engine;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Enumeration;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
@@ -115,7 +116,10 @@ public final class Main {
             Path dir = target.getParent();
             if (dir != null) Files.createDirectories(dir);
             tmp = Files.createTempFile(dir, ".hwp2x-", ".part");
-            HWPXWriter.toFilepath(hwpx, tmp.toString());
+            // our own stream, closed even on failure: Windows cannot delete a file left open
+            try (OutputStream os = Files.newOutputStream(tmp)) {
+                HWPXWriter.toStream(hwpx, os);
+            }
             hwpx = null;
             int removed = repackage(tmp);
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);

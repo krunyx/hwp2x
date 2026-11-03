@@ -31,9 +31,13 @@ def long_doc(tmp_path_factory):
     subprocess.run(["javac", "-nowarn", "-cp", str(JAR), "-d", str(d), str(ROOT / "tests" / "tools" / "Grow.java")],
                    check=True, capture_output=True)
     out = d / "long.hwp"
+    # Windows passes command-line arguments to Java in the ANSI code page, so the
+    # Korean sample name would not survive: hand the helper an ASCII copy.
+    src = d / "sample.hwp"
+    shutil.copy(SAMPLE, src)
     env = dict(os.environ, LC_ALL="C.UTF-8")
     env.pop("JAVA_TOOL_OPTIONS", None)
-    subprocess.run(["java", "-Xmx2g", "-cp", f"{JAR}{os.pathsep}{d}", "Grow", str(SAMPLE), str(out), "20"],
+    subprocess.run(["java", "-Xmx2g", "-cp", f"{JAR}{os.pathsep}{d}", "Grow", str(src), str(out), "20"],
                    check=True, capture_output=True, env=env, timeout=600)
     return out
 
