@@ -49,10 +49,9 @@ def check_hwpx(path: str | Path) -> list[str]:
 
         for n in sorted(names):
             if n.endswith((".xml", ".hpf")):
-                try:
-                    ET.fromstring(zf.read(n))
-                except ET.ParseError as e:
-                    problems.append(f"malformed XML in {n}: {e}")
+                err = _xml_error(zf, n)
+                if err:
+                    problems.append(f"malformed XML in {n}: {err}")
 
         if "Contents/content.hpf" in names:
             try:
@@ -66,6 +65,22 @@ def check_hwpx(path: str | Path) -> list[str]:
             except ET.ParseError:
                 pass  # already reported above
     return problems
+
+
+def _xml_error(zf: zipfile.ZipFile, name: str) -> str:
+    """Well-formedness check that streams: section XML of a long document can be
+    hundreds of MB, far too much to hold as a tree."""
+    try:
+        with zf.open(name) as f:
+            root = None
+            for event, el in ET.iterparse(f, events=("start", "end")):
+                if root is None:
+                    root = el
+                elif event == "end" and len(root) > 64:
+                    root.clear()
+        return ""
+    except ET.ParseError as e:
+        return str(e)
 
 
 def section_text(path: str | Path) -> str:

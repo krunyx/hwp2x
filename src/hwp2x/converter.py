@@ -117,11 +117,16 @@ def default_workers() -> int:
     return max(1, min(4, (os.cpu_count() or 2) // 2))
 
 
+# Only one "big" retry at a time: it may use most of the machine's memory.
+_BIG_LOCK = threading.Lock()
+
+
 class _Worker:
     """One conversion lane: a lazily started Java engine plus a scratch folder."""
 
-    def __init__(self, timeout: float):
+    def __init__(self, timeout: float, heap_share: float = 0.5):
         self.timeout = timeout
+        self.heap_share = heap_share
         self.engine: Engine | None = None
         self.tmp = tempfile.TemporaryDirectory(prefix="hwp2x-")
 
@@ -132,9 +137,14 @@ class _Worker:
 
     def _to_hwpx(self, src: Path, dst: Path) -> tuple[str, str, str, int]:
         if self.engine is None:
-            self.engine = Engine(timeout=self.timeout)
+            self.engine = Engine(timeout=self.timeout, heap_share=self.heap_share)
             self.engine.start()
-        return self.engine.convert(src, dst)
+        res = self.engine.convert(src, dst)
+        if res[1] == "MEMORY" and self.heap_share < 0.75:
+            # Out of memory with this lane's share: retry alone with most of the RAM.
+            with _BIG_LOCK, Engine(timeout=self.timeout * 2, heap_share=0.75) as big:
+                res = big.convert(src, dst)
+        return res
 
     def run(self, job: Job, verify: bool) -> Result:
         t0 = time.monotonic()
@@ -220,8 +230,11 @@ def convert_all(jobs: list[Job], *, overwrite: bool = False, verify: bool = True
             with lock:
                 on_result(r)
 
+    # Lanes share the machine: each JVM may use a part of physical memory.
+    share = max(0.25, min(0.6, 0.6 / workers))
+
     def lane() -> None:
-        w = _Worker(timeout)
+        w = _Worker(timeout, share)
         try:
             while not stop.is_set():
                 try:

@@ -97,6 +97,8 @@ public final class Main {
         HWPFile hwp;
         try {
             hwp = HWPReader.fromFile(inFile);
+        } catch (OutOfMemoryError e) {
+            return memoryError();
         } catch (Throwable e) {
             return err("READ", describe(e));
         }
@@ -109,15 +111,20 @@ public final class Main {
         Path tmp = null;
         try {
             HWPXFile hwpx = Hwp2Hwpx.toHWPX(hwp);
+            hwp = null;                      // the source model is no longer needed: let it go before writing
             Path dir = target.getParent();
             if (dir != null) Files.createDirectories(dir);
             tmp = Files.createTempFile(dir, ".hwp2x-", ".part");
             HWPXWriter.toFilepath(hwpx, tmp.toString());
+            hwpx = null;
             int removed = repackage(tmp);
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             tmp = null;
             return "OK\t" + (System.currentTimeMillis() - t0)
                     + (removed > 0 ? "\tWARN:removed " + removed + " invalid XML control characters" : "");
+        } catch (OutOfMemoryError e) {
+            hwp = null;
+            return memoryError();
         } catch (Throwable e) {
             return err("CONVERT", describe(e));
         } finally {
@@ -164,10 +171,15 @@ public final class Main {
                     if (name.equals("mimetype")) continue;
                     dst.putNextEntry(new ZipEntry(name));
                     if (name.endsWith(".xml") || name.endsWith(".hpf")) {
-                        byte[] data = readAll(src.getInputStream(e));
-                        int n = stripXmlControlChars(data);
-                        removed += data.length - n;
-                        dst.write(data, 0, n);
+                        // streamed in chunks: section XML of a long document can be hundreds of MB
+                        try (InputStream in = src.getInputStream(e)) {
+                            int r;
+                            while ((r = in.read(buf)) > 0) {
+                                int n = stripXmlControlChars(buf, r);
+                                removed += r - n;
+                                dst.write(buf, 0, n);
+                            }
+                        }
                     } else {
                         try (InputStream in = src.getInputStream(e)) {
                             int r;
@@ -190,9 +202,9 @@ public final class Main {
      * Safe on UTF-8 bytes: these values never occur inside multi-byte sequences.
      * Returns the new length.
      */
-    static int stripXmlControlChars(byte[] data) {
+    static int stripXmlControlChars(byte[] data, int length) {
         int w = 0;
-        for (int r = 0; r < data.length; r++) {
+        for (int r = 0; r < length; r++) {
             byte b = data[r];
             if (b >= 0 && b < 0x20 && b != 0x09 && b != 0x0A && b != 0x0D) continue;
             data[w++] = b;
@@ -228,6 +240,12 @@ public final class Main {
         if (data.length < sig.length) return false;
         for (int i = 0; i < sig.length; i++) if (data[i] != sig[i]) return false;
         return true;
+    }
+
+    private static String memoryError() {
+        System.gc();
+        long mb = Runtime.getRuntime().maxMemory() >> 20;
+        return err("MEMORY", "out of memory (limit " + mb + " MB)");
     }
 
     private static String describe(Throwable e) {

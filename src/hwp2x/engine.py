@@ -58,20 +58,55 @@ def _child_env(bundled: bool) -> dict[str, str]:
     return env
 
 
+def total_ram_mb() -> int:
+    """Physical memory in MB (0 if unknown)."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class _MS(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            ms = _MS()
+            ms.dwLength = ctypes.sizeof(_MS)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(ms)):
+                return int(ms.ullTotalPhys // (1 << 20))
+            return 0
+        if sys.platform == "darwin":
+            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5)
+            return int(out.stdout.strip()) // (1 << 20)
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") // (1 << 20)
+    except Exception:
+        return 0
+
+
+def heap_mb(share: float) -> int:
+    """Java heap limit for one engine: ``share`` of physical memory, at least 512 MB.
+    Java's own default is only 25 %, which made long documents fail on 4-8 GB PCs."""
+    ram = total_ram_mb()
+    if not ram:
+        return 2048
+    return max(512, int(ram * share))
+
+
 class Engine:
     """A running conversion JVM. Use as a context manager."""
 
-    def __init__(self, timeout: float = 300.0):
+    def __init__(self, timeout: float = 300.0, heap_share: float = 0.5):
         if not JAR.exists():
             raise EngineError(f"엔진 파일이 없습니다: {JAR}  (scripts/build_engine.py 로 빌드하세요)")
         self.java, self.bundled = find_java()
         self.timeout = timeout
+        self.heap_share = heap_share
         self._proc: subprocess.Popen | None = None
         self._lines: queue.Queue[str | None] = queue.Queue()
 
     # -- process management ------------------------------------------------
     def start(self) -> None:
-        cmd = [self.java, "-Xss8m", "-Djava.awt.headless=true",
+        cmd = [self.java, f"-Xmx{heap_mb(self.heap_share)}m", "-Xss8m", "-Djava.awt.headless=true",
                "-Dfile.encoding=UTF-8", "-jar", str(JAR), "--serve"]
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console flash on Windows
         try:
@@ -173,6 +208,7 @@ MESSAGES_KO = {
     "PASSWORD": "암호가 걸린 문서. 한글에서 암호를 해제한 뒤 다시 변환하세요",
     "DISTRIBUTION": "배포용 문서라 변환하지 않음 (작성자가 복사·인쇄를 제한한 문서)",
     "READ": "문서를 읽지 못했습니다 (손상되었거나 지원하지 않는 기능)",
+    "MEMORY": "문서가 너무 커서 메모리가 부족합니다. 다른 프로그램을 닫고 이 파일만 다시 변환해 보세요",
     "CONVERT": "변환 중 오류가 발생했습니다",
     "BADJOB": "내부 오류",
 }

@@ -69,8 +69,7 @@ class HwpxReader:
         sections = self._read_package()
         self._read_header()
         for name in sections:
-            root = ET.fromstring(self.zf.read(name))
-            self.doc.blocks.extend(self._paragraphs(root, top=True))
+            self._read_section(name)
         for what, n in sorted(self._counts.items()):
             self.doc.warn(f"{what} {n}개는 변환하지 않았습니다")
         self.zf.close()
@@ -106,6 +105,23 @@ class HwpxReader:
             sections = sorted((n for n in self.names if re.match(r"Contents/section\d+\.xml$", n)),
                               key=lambda n: int(re.findall(r"\d+", n)[0]))
         return sections
+
+    def _read_section(self, name: str) -> None:
+        """Stream the section: each top-level paragraph is converted as soon as it
+        is complete and then dropped, so memory stays small for long documents."""
+        depth = 0
+        root = None
+        with self.zf.open(name) as f:
+            for event, el in ET.iterparse(f, events=("start", "end")):
+                if event == "start":
+                    depth += 1
+                    if root is None:
+                        root = el
+                    continue
+                if depth == 2 and _local(el.tag) == "p":
+                    self.doc.blocks.extend(self._paragraph(el))
+                    root.clear()
+                depth -= 1
 
     def _read_header(self) -> None:
         if "Contents/header.xml" not in self.names:

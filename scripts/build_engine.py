@@ -72,8 +72,76 @@ def fetch_upstream() -> list[Path]:
         if head != commit:
             run(["git", "-C", d, "fetch", "-q", "origin", commit])
             run(["git", "-C", d, "checkout", "-q", commit])
+        run(["git", "-C", d, "checkout", "-q", "--", "."])   # drop earlier patches
         src_dirs.append(d / "src" / "main" / "java")
+    apply_patches(up)
     return src_dirs
+
+
+# Small fixes applied to the pinned upstream sources. Each "old" text must
+# occur exactly once; if upstream changes, the build stops here instead of
+# silently shipping an unpatched engine.
+_XSB = "hwpxlib/src/main/java/kr/dogfoot/hwpxlib/writer/util/XMLStringBuilder.java"
+_HWPXW = "hwpxlib/src/main/java/kr/dogfoot/hwpxlib/writer/HWPXWriter.java"
+PATCHES = [
+    # Stream section XML straight into the zip instead of building the whole
+    # section as one string (which needed ~15x the XML size in memory and made
+    # long documents fail with OutOfMemoryError).
+    (_XSB, "    private final StringBuilder sb;\n",
+     "    private final StringBuilder sb;\n"
+     "    private java.io.Writer sink;                       // hwp2x: streaming target\n"
+     "    private static final int SpillSize = 1 << 20;\n"),
+    (_XSB, "    public XMLStringBuilder closeElement() {\n        checkSwitch(true);\n",
+     "    public XMLStringBuilder closeElement() {\n        spill();\n        checkSwitch(true);\n"),
+    (_XSB, "    public XMLStringBuilder clear() {\n",
+     "    /** hwp2x: send everything appended from now on to {@code w}, in chunks. */\n"
+     "    public void beginStream(java.io.Writer w) {\n"
+     "        sb.setLength(0);\n"
+     "        sink = w;\n"
+     "    }\n\n"
+     "    /** hwp2x: close open elements and write what is left to the stream. */\n"
+     "    public void endStream() throws java.io.IOException {\n"
+     "        while (!elementStack.empty()) {\n"
+     "            closeElement();\n"
+     "        }\n"
+     "        java.io.Writer w = sink;\n"
+     "        sink = null;\n"
+     "        w.append(sb);\n"
+     "        sb.setLength(0);\n"
+     "    }\n\n"
+     "    private void spill() {\n"
+     "        if (sink != null && sb.length() >= SpillSize) {\n"
+     "            try {\n"
+     "                sink.append(sb);\n"
+     "            } catch (java.io.IOException e) {\n"
+     "                throw new java.io.UncheckedIOException(e);\n"
+     "            }\n"
+     "            sb.setLength(0);\n"
+     "        }\n"
+     "    }\n\n"
+     "    public XMLStringBuilder clear() {\n"),
+    (_HWPXW,
+     "                writeChild(ElementWriterSort.Section, hwpxFile.sectionXMLFileList().get(sectionIndex));\n"
+     "                putIntoZip(item.href(), xsb().toString(), StandardCharsets.UTF_8);\n",
+     "                zos.putNextEntry(new ZipEntry(item.href()));\n"
+     "                java.io.Writer w = new java.io.BufferedWriter(\n"
+     "                        new java.io.OutputStreamWriter(zos, StandardCharsets.UTF_8), 1 << 16);\n"
+     "                xsb().beginStream(w);\n"
+     "                writeChild(ElementWriterSort.Section, hwpxFile.sectionXMLFileList().get(sectionIndex));\n"
+     "                xsb().endStream();\n"
+     "                w.flush();\n"
+     "                zos.closeEntry();\n"),
+]
+
+
+def apply_patches(up: Path) -> None:
+    for rel, old, new in PATCHES:
+        p = up / rel
+        text = p.read_text(encoding="utf-8")
+        if text.count(old) != 1:
+            sys.exit(f"error: patch target not found exactly once in {rel}:\n{old[:120]}")
+        p.write_text(text.replace(old, new), encoding="utf-8")
+    print(f"applied {len(PATCHES)} patches to upstream sources")
 
 
 def compile_jar(src_dirs: list[Path]) -> Path:

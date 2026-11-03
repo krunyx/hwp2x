@@ -60,7 +60,7 @@ if sys.platform == "darwin":
                  info_plist={
                      "CFBundleDisplayName": "hwp2x",
                      "CFBundleExecutable": "hwp2x-gui",
-                     "CFBundleShortVersionString": "0.2.0",
+                     "CFBundleShortVersionString": "0.2.1",
                      "NSHighResolutionCapable": True,
                      "CFBundleDocumentTypes": [{
                          "CFBundleTypeName": "Hangul Document",
