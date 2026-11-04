@@ -6,14 +6,14 @@ import threading
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QColor
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFrame,
-    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
-    QRadioButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog,
+    QFrame, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenuBar, QMessageBox, QProgressBar,
+    QPushButton, QRadioButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-from . import __version__
+from . import about
 from .converter import Result, convert_all, plan
 from .engine import EngineError
 from .writers import FORMATS
@@ -56,6 +56,12 @@ QComboBox:focus {{ border: 2px solid {ACCENT}; }}
 QComboBox QAbstractItemView {{ background: #FFFFFF; selection-background-color: #E3EBF5; selection-color: {INK}; }}
 QLineEdit {{ background: #FFFFFF; border: 1px solid {LINE}; border-radius: 6px; padding: 6px 8px; }}
 QLineEdit:disabled {{ color: #A6B0BB; }}
+QLabel#footer {{ color: #8592A0; font-size: 11px; }}
+QLabel#footer a {{ color: #8592A0; text-decoration: none; }}
+QDialog#about {{ background: #FFFFFF; }}
+QDialog#about QLabel {{ background: #FFFFFF; }}
+QLabel#appname {{ font-size: 22px; font-weight: 600; }}
+QLabel#small {{ color: {MUTED}; font-size: 12px; }}
 QProgressBar {{ background: #E3E8ED; border: none; border-radius: 3px; max-height: 6px; }}
 QProgressBar::chunk {{ background: {ACCENT}; border-radius: 3px; }}
 """
@@ -243,6 +249,16 @@ class MainWindow(QWidget):
         bottom.addWidget(self.btn_open)
         bottom.addWidget(self.btn_go)
         root.addLayout(bottom)
+
+        # Version and copyright, small; clicking opens the About dialog.
+        self.footer = QLabel(f'<a href="#about" style="color:#8592A0; text-decoration:none">'
+                             f'{_no_ligature(about.APP_NAME)} {about.VERSION} · {about.COPYRIGHT}</a>')
+        self.footer.setObjectName("footer")
+        self.footer.setTextFormat(Qt.RichText)
+        self.footer.setToolTip("프로그램 정보")
+        self.footer.setCursor(Qt.PointingHandCursor)
+        self.footer.linkActivated.connect(lambda _l: self.show_about())
+        root.addWidget(self.footer)
 
         self._sync_dest()
         self._sync_buttons()
@@ -458,6 +474,9 @@ class MainWindow(QWidget):
         self.btn_clear.setEnabled(not busy and has)
         self.drop.setAcceptDrops(not busy)
 
+    def show_about(self) -> None:
+        AboutDialog(self).exec()
+
     def closeEvent(self, e) -> None:  # noqa: N802
         if self.busy and self.worker:
             self.worker.cancel.set()
@@ -466,13 +485,112 @@ class MainWindow(QWidget):
         e.accept()
 
 
+ASSETS = Path(__file__).resolve().parent / "assets"
+
+
+def _no_ligature(name: str) -> str:
+    # Some fonts (Inter, SF) turn "2x" into "2×"; a zero-width non-joiner keeps the letter.
+    return name.replace("2x", "2\u200cx")
+
+
+def _link(url: str, text: str) -> str:
+    return f'<a href="{url}" style="color:{ACCENT}; text-decoration:none">{text}</a>'
+
+
+class AboutDialog(QDialog):
+    """Name, version, copyright, links and open-source notices."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("about")
+        self.setWindowTitle(f"{about.APP_NAME} 정보")
+        self.setMinimumWidth(500)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(28, 24, 28, 20)
+        lay.setSpacing(8)
+
+        logo = QLabel()
+        pm = QPixmap(str(ASSETS / "logo.png"))
+        if not pm.isNull():
+            dpr = self.devicePixelRatioF() or 1.0
+            pm = pm.scaledToHeight(int(40 * dpr), Qt.SmoothTransformation)
+            pm.setDevicePixelRatio(dpr)
+            logo.setPixmap(pm)
+            lay.addWidget(logo)
+            lay.addSpacing(10)
+
+        name = QLabel(f"{_no_ligature(about.APP_NAME)} <span style='color:{MUTED}; font-weight:400; font-size:15px'>"
+                      f"버전 {about.VERSION}</span>")
+        name.setObjectName("appname")
+        name.setTextFormat(Qt.RichText)
+        lay.addWidget(name)
+        desc = QLabel(about.DESCRIPTION)
+        desc.setWordWrap(True)
+        lay.addWidget(desc)
+        lay.addSpacing(6)
+
+        links = QLabel(
+            f'{about.COPYRIGHT} · {about.LICENSE}<br>'
+            f'{_link(about.HOMEPAGE, "krunyx.com")} &nbsp;·&nbsp; '
+            f'{_link(about.SOURCE_URL, "소스 코드")} &nbsp;·&nbsp; '
+            f'{_link(about.LATEST_URL, "최신 버전 확인")}')
+        links.setTextFormat(Qt.RichText)
+        links.setOpenExternalLinks(True)
+        lay.addWidget(links)
+        lay.addSpacing(10)
+
+        rows = "".join(
+            f"<tr><td style='padding:2px 14px 2px 0'>{_link(url, comp)}</td>"
+            f"<td style='padding:2px 14px 2px 0'>{what}</td><td style='padding:2px 0'>{lic}</td></tr>"
+            for comp, what, lic, url in about.THIRD_PARTY)
+        notice = QLabel(
+            "<b>함께 쓰는 오픈소스</b>"
+            f"<table style='margin-top:4px'>{rows}</table>"
+            f"<p style='margin-top:8px'>“{about.HANCOM_NOTICE}”</p>")
+        notice.setObjectName("small")
+        notice.setTextFormat(Qt.RichText)
+        notice.setOpenExternalLinks(True)
+        notice.setWordWrap(True)
+        lay.addWidget(notice)
+
+        close = QPushButton("닫기")
+        close.setObjectName("primary")
+        close.setDefault(True)
+        close.clicked.connect(self.accept)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(close)
+        lay.addSpacing(6)
+        lay.addLayout(row)
+
+
+def _install_mac_menu(window: MainWindow) -> QMenuBar:
+    """macOS convention: "About hwp2x" lives in the application menu.
+    A parentless menu bar becomes the global one; Qt moves the AboutRole
+    action into the app menu automatically."""
+    bar = QMenuBar()
+    menu = bar.addMenu("도움말")
+    act = QAction(f"{about.APP_NAME}에 관하여", bar)
+    act.setMenuRole(QAction.AboutRole)
+    act.triggered.connect(window.show_about)
+    menu.addAction(act)
+    return bar
+
+
 def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setApplicationName("hwp2x")
-    app.setApplicationVersion(__version__)
+    app.setApplicationName(about.APP_NAME)
+    app.setApplicationVersion(about.VERSION)
+    app.setOrganizationName(about.COMPANY)
+    app.setOrganizationDomain("krunyx.com")
+    icon = ASSETS / "icon-256.png"
+    if icon.exists():
+        app.setWindowIcon(QIcon(str(icon)))
     app.setStyle("Fusion")  # identical look on Windows, macOS and Linux
     app.setStyleSheet(QSS)
     w = MainWindow()
+    if sys.platform == "darwin":
+        w._mac_menu = _install_mac_menu(w)
     w.show()
     w.add_paths([a for a in sys.argv[1:] if Path(a).exists()])  # "Open with…" / drop on icon
     return app.exec()

@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hwp2x"
-version = "0.2.1"
+version = "0.2.2"
 description = "Convert Hangul (HWP/HWPX) documents to HWPX, DOCX, Markdown, HTML, LaTeX and HyperTeX"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
+authors = [{ name = "krunyx" }]
 dependencies = ["Pillow>=10"]   # BMP/GIF/TIFF pictures -> PNG
 
 [project.optional-dependencies]
@@ -29,7 +30,7 @@ where = ["src"]
 # The jar is portable. The bundled Java runtime is platform specific and is
 # shipped only in the standalone app builds (see packaging/hwp2x.spec);
 # a pip install uses the system Java instead.
-hwp2x = ["_engine/hwp2x-engine.jar", "_engine/NOTICE.txt"]
+hwp2x = ["_engine/hwp2x-engine.jar", "_engine/NOTICE.txt", "assets/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

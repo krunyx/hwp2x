@@ -95,6 +95,6 @@ pyinstaller packaging/hwp2x.spec --noconfirm
 
 ## 라이선스
 
-Apache-2.0. 변환 엔진은 neolord0의 [hwplib](https://github.com/neolord0/hwplib), [hwpxlib](https://github.com/neolord0/hwpxlib), [hwp2hwpx](https://github.com/neolord0/hwp2hwpx) (모두 Apache-2.0)를 고정된 커밋으로 빌드해 사용합니다. 함께 배포되는 Java 런타임은 OpenJDK(GPLv2 + Classpath Exception), 그림 변환에 쓰는 Pillow는 HPND 라이선스입니다.
+© 2026 krunyx. Apache-2.0. 변환 엔진은 neolord0의 [hwplib](https://github.com/neolord0/hwplib), [hwpxlib](https://github.com/neolord0/hwpxlib), [hwp2hwpx](https://github.com/neolord0/hwp2hwpx) (모두 Apache-2.0)를 고정된 커밋으로 빌드해 사용합니다. 함께 배포되는 Java 런타임은 OpenJDK(GPLv2 + Classpath Exception), 그림 변환에 쓰는 Pillow는 HPND 라이선스입니다.
 
 “본 제품은 한글과컴퓨터의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.”

@@ -76,3 +76,23 @@ def test_gui_ignores_non_hwp_drops(app, tmp_path):
     w = gui.MainWindow()
     w.add_paths([str(tmp_path / "note.txt")])
     assert w.table.rowCount() == 0 and not w.btn_go.isEnabled()
+
+
+def test_about_dialog_and_footer(app):
+    from hwp2x import about
+    w = gui.MainWindow()
+    assert about.VERSION in w.footer.text() and "krunyx" in w.footer.text()
+    d = gui.AboutDialog(w)
+    texts = " ".join(lbl.text() for lbl in d.findChildren(gui.QLabel))
+    for needle in (about.VERSION, about.COPYRIGHT, "Apache", "neolord0", "OpenJDK", about.LATEST_URL,
+                   "한글과컴퓨터"):
+        assert needle in texts, needle
+    assert any(not lbl.pixmap().isNull() for lbl in d.findChildren(gui.QLabel))   # logo
+
+
+def test_cli_version_shows_copyright(capsys):
+    from hwp2x.cli import main
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    out = capsys.readouterr().out
+    assert "krunyx" in out and "0." in out

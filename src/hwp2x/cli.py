@@ -44,7 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="파일 하나당 제한 시간 (기본 300초)")
     p.add_argument("--no-verify", action="store_true", help="결과 파일 구조 검사 생략")
     p.add_argument("-q", "--quiet", action="store_true", help="실패한 파일만 출력")
-    p.add_argument("-V", "--version", action="version", version=f"hwp2x {__version__}")
+    from .about import version_line
+    p.add_argument("-V", "--version", action="version", version=version_line())
     return p
 
 

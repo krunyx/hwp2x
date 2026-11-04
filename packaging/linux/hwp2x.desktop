@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=hwp2x
+Comment=한글 문서(HWP·HWPX)를 HWPX, Word, Markdown, HTML, LaTeX, HyperTeX로 변환
+Comment[en]=Convert Hangul documents (HWP, HWPX) to HWPX, DOCX, Markdown, HTML, LaTeX and HyperTeX
+Exec=hwp2x-gui %F
+Icon=hwp2x
+Terminal=false
+Categories=Office;Utility;
+MimeType=application/x-hwp;application/haansofthwp;application/vnd.hancom.hwp;application/vnd.hancom.hwpx;

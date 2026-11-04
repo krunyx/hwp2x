@@ -81,6 +81,20 @@ jobs:
           ls -R smoke
           test -s "smoke/한글 폴더/보고서 표.docx" && test -s "smoke/한글 폴더/그림.md" && test -d "smoke/한글 폴더/그림_files"
           python -c "import sys; sys.path.insert(0,'src'); from hwp2x.verify import check_docx; p=check_docx('smoke/한글 폴더/보고서 표.docx'); print(p); sys.exit(1 if p else 0)"
+          # version, copyright and icon where each OS shows them
+          "$CLI" --version | tee ver.txt; grep -q krunyx ver.txt
+          VER=$(python -c "import sys; sys.path.insert(0,'src'); import hwp2x; print(hwp2x.__version__)")
+          case "$RUNNER_OS" in
+            Windows)
+              powershell -NoProfile -Command "\$v=(Get-Item dist/hwp2x/hwp2x-gui.exe).VersionInfo; \$v | Format-List CompanyName,ProductName,ProductVersion,LegalCopyright; if (\$v.CompanyName -ne 'krunyx' -or \$v.ProductVersion -ne '$VER') { exit 1 }" ;;
+            macOS)
+              P=dist/hwp2x.app/Contents/Info.plist
+              /usr/libexec/PlistBuddy -c "Print NSHumanReadableCopyright" $P | grep krunyx
+              test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' $P)" = "$VER"
+              test -s "dist/hwp2x.app/Contents/Resources/$(/usr/libexec/PlistBuddy -c 'Print CFBundleIconFile' $P)" ;;
+            *)
+              test -s dist/hwp2x/_internal/hwp2x/assets/icon-256.png ;;
+          esac
 
       - name: Package
         run: |
@@ -88,6 +102,7 @@ jobs:
           V="${GITHUB_REF_NAME#v}"; [[ "$GITHUB_REF" == refs/tags/* ]] || V=dev
           case "$RUNNER_OS" in
             Windows)
+              cp LICENSE NOTICE dist/hwp2x/
               7z a -tzip "out/hwp2x-$V-${{ matrix.name }}.zip" ./dist/hwp2x/* >/dev/null ;;
             macOS)
               codesign --force --deep --sign - dist/hwp2x.app   # ad-hoc signature (required on Apple silicon)
@@ -99,6 +114,7 @@ jobs:
                 echo "hdiutil failed (attempt $n), retrying"; sleep $((n * 10))
               done ;;
             *)
+              cp LICENSE NOTICE packaging/linux/hwp2x.desktop packaging/linux/install.sh packaging/icons/hwp2x-512.png dist/hwp2x/
               tar -C dist -czf "out/hwp2x-$V-${{ matrix.name }}.tar.gz" hwp2x ;;
           esac
           ls -lh out
