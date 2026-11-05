@@ -85,7 +85,7 @@ def test_about_dialog_and_footer(app):
     d = gui.AboutDialog(w)
     texts = " ".join(lbl.text() for lbl in d.findChildren(gui.QLabel))
     for needle in (about.VERSION, about.COPYRIGHT, "Apache", "neolord0", "OpenJDK", about.LATEST_URL,
-                   "한글과컴퓨터"):
+                   "한글과컴퓨터", "보증", "책임", about.TERMS_URL):
         assert needle in texts, needle
     assert any(not lbl.pixmap().isNull() for lbl in d.findChildren(gui.QLabel))   # logo
 
@@ -96,3 +96,14 @@ def test_cli_version_shows_copyright(capsys):
         main(["--version"])
     out = capsys.readouterr().out
     assert "krunyx" in out and "0." in out
+
+
+def test_cli_license_prints_terms(capsys):
+    from hwp2x import about
+    from hwp2x.cli import main
+    with pytest.raises(SystemExit) as e:
+        main(["--license"])
+    assert e.value.code == 0
+    out = capsys.readouterr().out
+    for needle in ("Apache License 2.0", "있는 그대로", "책임", "상표", about.TERMS_URL):
+        assert needle in out, needle
