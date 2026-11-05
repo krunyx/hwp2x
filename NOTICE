@@ -8,4 +8,11 @@ Apache License 2.0.
 Binary distributions also include OpenJDK (GPLv2 with the Classpath
 Exception), Qt for Python / PySide6 (LGPLv3) and Pillow (HPND).
 
+hwp2x is provided "AS IS", without warranties or conditions of any kind, and
+krunyx and the contributors are not liable for any damages arising from its
+use (Apache License 2.0, Sections 7 and 8). See https://krunyx.com/hwp2x/#license
+
+"한글", "HWP" and "HWPX" are trademarks of Hancom Inc. hwp2x is an independent
+project and is not affiliated with or endorsed by Hancom.
+
 “본 제품은 한글과컴퓨터의 HWP 문서 파일(.hwp) 공개 문서를 참고하여 개발하였습니다.”

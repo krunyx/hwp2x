@@ -504,7 +504,7 @@ class AboutDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("about")
         self.setWindowTitle(f"{about.APP_NAME} 정보")
-        self.setMinimumWidth(500)
+        self.setFixedWidth(560)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 20)
         lay.setSpacing(8)
@@ -539,19 +539,29 @@ class AboutDialog(QDialog):
         lay.addWidget(links)
         lay.addSpacing(10)
 
+        # One label per paragraph: a single long word-wrapped rich-text label gets
+        # its height under-estimated by Qt and is cut off.
+        def small(html: str) -> QLabel:
+            lbl = QLabel(html)
+            lbl.setObjectName("small")
+            lbl.setTextFormat(Qt.RichText)
+            lbl.setOpenExternalLinks(True)
+            lbl.setWordWrap(True)
+            lay.addWidget(lbl)
+            return lbl
+
+        small("<b>사용 조건</b>")
+        for head, body in about.TERMS:
+            small(f"<b>{head}</b> · {body}")
+        small(_link(about.TERMS_URL, "사용 조건 전문 보기"))
+        lay.addSpacing(10)
+
         rows = "".join(
             f"<tr><td style='padding:2px 14px 2px 0'>{_link(url, comp)}</td>"
             f"<td style='padding:2px 14px 2px 0'>{what}</td><td style='padding:2px 0'>{lic}</td></tr>"
             for comp, what, lic, url in about.THIRD_PARTY)
-        notice = QLabel(
-            "<b>함께 쓰는 오픈소스</b>"
-            f"<table style='margin-top:4px'>{rows}</table>"
-            f"<p style='margin-top:8px'>“{about.HANCOM_NOTICE}”</p>")
-        notice.setObjectName("small")
-        notice.setTextFormat(Qt.RichText)
-        notice.setOpenExternalLinks(True)
-        notice.setWordWrap(True)
-        lay.addWidget(notice)
+        small(f"<b>함께 쓰는 오픈소스</b><table style='margin-top:4px'>{rows}</table>")
+        small(f"“{about.HANCOM_NOTICE}”")
 
         close = QPushButton("닫기")
         close.setObjectName("primary")
@@ -562,6 +572,8 @@ class AboutDialog(QDialog):
         row.addWidget(close)
         lay.addSpacing(6)
         lay.addLayout(row)
+        # Height from the wrapped text at this width, so nothing is cut off.
+        self.setMinimumHeight(lay.totalHeightForWidth(self.width()))
 
 
 def _install_mac_menu(window: MainWindow) -> QMenuBar:
