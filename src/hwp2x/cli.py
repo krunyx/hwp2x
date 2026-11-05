@@ -22,6 +22,18 @@ def _configure_stdout() -> None:
             pass
 
 
+class _LicenseAction(argparse.Action):
+    """Like --version: print the terms and exit, without needing input paths."""
+
+    def __init__(self, option_strings, dest, **kw):
+        super().__init__(option_strings, dest, nargs=0, default=argparse.SUPPRESS, **kw)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        from .about import terms_text
+        print(terms_text())
+        parser.exit()
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="hwp2x",
@@ -46,6 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-q", "--quiet", action="store_true", help="실패한 파일만 출력")
     from .about import version_line
     p.add_argument("-V", "--version", action="version", version=version_line())
+    p.add_argument("--license", action=_LicenseAction, help="라이선스와 사용 조건(보증 없음·책임 제한) 보기")
     return p
 
 
