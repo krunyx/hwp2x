@@ -16,8 +16,7 @@ LICENSE = "Apache License 2.0"
 BUNDLE_ID = "com.krunyx.hwp2x"
 
 HOMEPAGE = "https://krunyx.com"
-SOURCE_URL = "https://github.com/krunyx/hwp2x"
-LATEST_URL = "https://github.com/krunyx/hwp2x/releases/latest"
+LATEST_URL = "https://krunyx.com/hwp2x/#download"
 
 # (component, author, licence, link) - shown in the About dialog.
 THIRD_PARTY = [

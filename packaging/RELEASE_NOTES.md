@@ -1,5 +1,10 @@
 한글 문서(HWP, HWPX)를 **HWPX, Word(DOCX), Markdown, HTML, LaTeX, HyperTeX**로 바꾸는 프로그램입니다. Java가 함께 들어 있어 따로 설치할 것이 없습니다.
 
+## 0.2.4 — 프로그램 정보 창 정리
+
+- **프로그램 정보** 창의 링크를 krunyx.com으로 모았습니다. **최신 버전 확인**은 이제 [krunyx.com/hwp2x](https://krunyx.com/hwp2x/#download)의 내려받기 안내로 연결됩니다.
+- 변환 기능은 0.2.3과 같습니다.
+
 ## 0.2.3 — 라이선스와 사용 조건 명시
 
 - **프로그램 정보** 창에 **사용 조건**을 넣었습니다: 라이선스(Apache License 2.0), 보증 없음, 책임 제한, 결과 확인, 상표 안내. 전문은 [krunyx.com/hwp2x/#license](https://krunyx.com/hwp2x/#license)에 있습니다.
