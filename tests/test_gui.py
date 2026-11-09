@@ -87,6 +87,7 @@ def test_about_dialog_and_footer(app):
     for needle in (about.VERSION, about.COPYRIGHT, "Apache", "neolord0", "OpenJDK", about.LATEST_URL,
                    "한글과컴퓨터", "보증", "책임", about.TERMS_URL):
         assert needle in texts, needle
+    assert "github.com/krunyx" not in texts      # the app links to krunyx.com, not the source repository
     assert any(not lbl.pixmap().isNull() for lbl in d.findChildren(gui.QLabel))   # logo
 
 

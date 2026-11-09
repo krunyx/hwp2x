@@ -532,7 +532,6 @@ class AboutDialog(QDialog):
         links = QLabel(
             f'{about.COPYRIGHT} · {about.LICENSE}<br>'
             f'{_link(about.HOMEPAGE, "krunyx.com")} &nbsp;·&nbsp; '
-            f'{_link(about.SOURCE_URL, "소스 코드")} &nbsp;·&nbsp; '
             f'{_link(about.LATEST_URL, "최신 버전 확인")}')
         links.setTextFormat(Qt.RichText)
         links.setOpenExternalLinks(True)
