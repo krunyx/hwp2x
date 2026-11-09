@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, name: windows-x64 }
-          - { os: macos-14,       name: macos-arm64 }   # Apple silicon
+          - { os: macos-15,       name: macos-arm64 }   # Apple silicon (macos-14 runners are retired)
           - { os: macos-15-intel, name: macos-x64 }    # Intel
           - { os: ubuntu-22.04,   name: linux-x64 }     # older glibc = wider compatibility
     runs-on: ${{ matrix.os }}
